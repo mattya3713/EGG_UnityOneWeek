@@ -1,11 +1,24 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Block : MonoBehaviour
 {
+    public static HashSet<Vector2Int> stageBlockGridPositions = new HashSet<Vector2Int>();
+
     [SerializeField] private float overlapCheckInterval = 0.05f;
 
     private float _nextCheckTime;
+
+    private void Start()
+    {
+        // ステージ上のブロック位置をグリッド座標で登録
+        if (GridChanager.Instance != null)
+        {
+            Vector2Int gridPos = GridChanager.Instance.GetGridPosition(transform.position);
+            stageBlockGridPositions.Add(gridPos);
+        }
+    }
 
     private void OnCollisionStay2D(Collision2D collision)
     {

@@ -164,7 +164,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private void OnBlockPlaced(Vector2Int blockGridPos, Vector3 blockWorldPos, Vector2Int placementDirection)
+    private void OnBlockPlaced(Vector2Int blockGridPos, Vector3 blockWorldPos)
     {
         if (GridChanager.Instance == null || dontMove)
         {
@@ -177,36 +177,53 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        Vector2Int preferredDirection = GetPreferredPushDirection(placementDirection, blockWorldPos);
+        // マウスの移動方向に基づいて推奨される方向を決定
+        Vector2 mouseMoveDir = MouseManager.GetMouseMoveDirection();
+        Vector2Int preferredDirection = GetPreferredPushDirection(mouseMoveDir, blockWorldPos);
+
+        // ブロック配置位置にプレイヤーがいる場合、プッシュ可能な方向を探す
         Vector2Int targetGridPos = ResolvePushTargetGrid(blockGridPos, preferredDirection);
 
         if (targetGridPos == blockGridPos)
         {
+            // どの方向にも押し出せない場合はゲームオーバー
             PlayerDie();
             return;
         }
 
+        // プレイヤーをターゲット位置に押す
         Vector3 targetWorld = GridChanager.Instance.GetWorldPosition(targetGridPos);
         targetWorld.z = transform.position.z;
         BeginPush(targetWorld);
-    }
-
-    /// <summary>
-    /// プレイヤーの推奨プッシュ方向を決定します。
-    /// マウス方向 → 相対位置 → 入力方向 の優先度で判定します。
-    /// </summary>
-    /// <param name="placementDirection">マウスの操作方向（ブロック配置時の連続操作方向）</param>
-    /// <param name="blockWorldPos">ブロックのワールド座標</param>
-    /// <returns>推奨される押し出し方向</returns>
-    private Vector2Int GetPreferredPushDirection(Vector2Int placementDirection, Vector3 blockWorldPos)
-    {
-        // マウス方向が指定されていれば優先
-        if (placementDirection != Vector2Int.zero)
-        {
-            return placementDirection;
         }
 
-        // プレイヤーとブロックの相対位置から方向を判定
+        /// <summary>
+        /// プレイヤーの推奨プッシュ方向を決定します。
+        /// マウス移動方向 → プレイヤーとブロックの相対位置 → 入力方向 の優先度で判定します。
+        /// </summary>
+    /// <param name="mouseMoveDirection">マウスの移動方向</param>
+    /// <param name="blockWorldPos">ブロックのワールド座標</param>
+    /// <returns>推奨される押し出し方向</returns>
+    private Vector2Int GetPreferredPushDirection(Vector2 mouseMoveDirection, Vector3 blockWorldPos)
+    {
+        // マウスの移動方向から最適な方向を決定
+        if (mouseMoveDirection.magnitude > 0.5f)
+        {
+            // マウスが左から右に移動 → 右へ押し出す
+            if (Mathf.Abs(mouseMoveDirection.x) >= Mathf.Abs(mouseMoveDirection.y))
+            {
+                if (mouseMoveDirection.x > 0f) return Vector2Int.right;
+                if (mouseMoveDirection.x < 0f) return Vector2Int.left;
+            }
+            // マウスが下から上に移動 → 上へ押し出す
+            else
+            {
+                if (mouseMoveDirection.y > 0f) return Vector2Int.up;
+                if (mouseMoveDirection.y < 0f) return Vector2Int.down;
+            }
+        }
+
+        // マウスが移動していない場合、プレイヤーとブロックの相対位置から方向を判定
         Vector2 delta = (Vector2)(transform.position - blockWorldPos);
 
         if (Mathf.Abs(delta.x) >= Mathf.Abs(delta.y))
@@ -311,6 +328,12 @@ public class PlayerController : MonoBehaviour
                 continue;
             }
 
+            // IgnoreRayCastは当たり判定から除外
+            if (hit.CompareTag("IgnoreRaycast"))
+            {
+                continue;
+            }
+
             return true;
         }
 
@@ -326,6 +349,8 @@ public class PlayerController : MonoBehaviour
 
         // 目標座標は即時に反映（判定座標を先に確定させて埋まりを防ぐ）
         transform.position = _pushTargetPosition;
+
+        Debug.Log(transform.position);
 
         if (rb2D != null)
         {
@@ -345,6 +370,7 @@ public class PlayerController : MonoBehaviour
         _pushElapsed += Time.deltaTime;
         float t = pushMoveDuration <= 0f ? 1f : Mathf.Clamp01(_pushElapsed / pushMoveDuration);
 
+        Debug.Log(gameObject.transform.position);
         if (visualTransform != null)
         {
             Vector3 from = _visualBaseLocalPosition + _visualPushStartOffset;

@@ -5,16 +5,19 @@ using UnityEngine.InputSystem;
 
 public class MouseManager : MonoBehaviour
 {
-    public static event Action<Vector2Int, Vector3, Vector2Int> BlockPlaced;
+    public static event Action<Vector2Int, Vector3> BlockPlaced;
 
     [SerializeField] private GameObject prefabToSpawn;
-    [SerializeField] private Transform spawnParent; // 生成したオブジェクトの親となるオブジェクト
+    [SerializeField] private Transform spawnParent;
     [SerializeField] private float placementZ = 0f;
     [SerializeField] private bool preventDuplicatePlacement = true;
 
     private readonly HashSet<Vector2Int> _occupiedGridPositions = new HashSet<Vector2Int>();
     private Vector2Int _lastSpawnedGridPos = new Vector2Int(int.MinValue, int.MinValue);
     private Camera _mainCamera;
+
+    private Vector3 _previousMouseWorldPosition = Vector3.zero;
+    private Vector2 _currentMouseMoveDirection = Vector2.zero;
 
     void Start()
     {
@@ -36,7 +39,19 @@ public class MouseManager : MonoBehaviour
 
         Vector3 mouseWorldPosition = GetMouseWorldPosition();
 
-        // オブジェクトをマウス位置に追従させる（このスクリプトがアタッチされたオブジェクト）
+        // マウスの移動方向を計算
+        Vector3 mouseDelta = mouseWorldPosition - _previousMouseWorldPosition;
+        if (mouseDelta.magnitude > 0.001f)
+        {
+            _currentMouseMoveDirection = new Vector2(mouseDelta.x, mouseDelta.y).normalized;
+        }
+        else
+        {
+            _currentMouseMoveDirection = Vector2.zero;
+        }
+        _previousMouseWorldPosition = mouseWorldPosition;
+
+        // オブジェクトをマウス位置に追従させる
         transform.position = mouseWorldPosition;
 
         // 左クリック中（長押し含む）は配置処理
@@ -74,12 +89,20 @@ public class MouseManager : MonoBehaviour
         // クリックされた座標からグリッド座標を取得
         Vector2Int gridPos = GridChanager.Instance.GetGridPosition(position);
 
+        // 前回と同じグリッド位置なら何もしない（連続配置防止）
         if (gridPos == _lastSpawnedGridPos)
         {
             return;
         }
 
+        // 重複配置禁止の場合、既に置かれたグリッドには配置しない
         if (preventDuplicatePlacement && _occupiedGridPositions.Contains(gridPos))
+        {
+            return;
+        }
+
+        // ゴール位置にはブロックを置けない
+        if (Goal.goalGridPositions.Contains(gridPos))
         {
             return;
         }
@@ -98,32 +121,25 @@ public class MouseManager : MonoBehaviour
             Instantiate(prefabToSpawn, spawnWorldPos, Quaternion.identity);
         }
 
-        // マウスのドラッグ方向を計算（前回の配置位置との差分から方向を判定）
-        Vector2Int placementDirection = Vector2Int.zero;
-        if (_lastSpawnedGridPos.x != int.MinValue)
-        {
-            // 前回の配置位置と今回の配置位置の差分を計算
-            Vector2Int rawDirection = gridPos - _lastSpawnedGridPos;
-
-            Debug.Log(rawDirection);
-
-            // X方向の移動が大きければ水平方向、Y方向の移動が大きければ垂直方向と判定
-            if (Mathf.Abs(rawDirection.x) >= Mathf.Abs(rawDirection.y))
-            {
-                // 水平方向：右(1)または左(-1)
-                placementDirection = new Vector2Int(Mathf.Clamp(rawDirection.x, -1, 1), 0);
-            }
-            else
-            {
-                // 垂直方向：上(1)または下(-1)
-                placementDirection = new Vector2Int(0, Mathf.Clamp(rawDirection.y, -1, 1));
-            }
-        }
-
+        // 配置位置を記録してイベント発火
         _occupiedGridPositions.Add(gridPos);
         _lastSpawnedGridPos = gridPos;
-        BlockPlaced?.Invoke(gridPos, spawnWorldPos, placementDirection);
+        BlockPlaced?.Invoke(gridPos, spawnWorldPos);
 
         Debug.Log($"グリッド {gridPos} にオブジェクトを生成しました。");
+    }
+
+    /// <summary>
+    /// マウスの移動方向を取得します。
+    /// </summary>
+    /// <returns>正規化されたマウス移動方向ベクトル</returns>
+    public static Vector2 GetMouseMoveDirection()
+    {
+        MouseManager manager = FindObjectOfType<MouseManager>();
+        if (manager != null)
+        {
+            return manager._currentMouseMoveDirection;
+        }
+        return Vector2.zero;
     }
 }

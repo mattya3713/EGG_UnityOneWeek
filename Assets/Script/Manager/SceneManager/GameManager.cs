@@ -98,6 +98,8 @@ public class GameManager : MonoBehaviour
     {
         if (gameEndFlag)
         {
+            return;
+
             if (goalFlag)
             {
                 if (endProcessing) return; // already handled
