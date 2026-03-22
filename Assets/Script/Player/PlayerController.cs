@@ -191,13 +191,22 @@ public class PlayerController : MonoBehaviour
         BeginPush(targetWorld);
     }
 
+    /// <summary>
+    /// プレイヤーの推奨プッシュ方向を決定します。
+    /// マウス方向 → 相対位置 → 入力方向 の優先度で判定します。
+    /// </summary>
+    /// <param name="placementDirection">マウスの操作方向（ブロック配置時の連続操作方向）</param>
+    /// <param name="blockWorldPos">ブロックのワールド座標</param>
+    /// <returns>推奨される押し出し方向</returns>
     private Vector2Int GetPreferredPushDirection(Vector2Int placementDirection, Vector3 blockWorldPos)
     {
+        // マウス方向が指定されていれば優先
         if (placementDirection != Vector2Int.zero)
         {
             return placementDirection;
         }
 
+        // プレイヤーとブロックの相対位置から方向を判定
         Vector2 delta = (Vector2)(transform.position - blockWorldPos);
 
         if (Mathf.Abs(delta.x) >= Mathf.Abs(delta.y))
@@ -211,14 +220,24 @@ public class PlayerController : MonoBehaviour
             if (delta.y < 0f) return Vector2Int.down;
         }
 
+        // プレイヤーの入力方向で判定
         if (moveValue.x > 0f) return Vector2Int.right;
         if (moveValue.x < 0f) return Vector2Int.left;
 
+        // デフォルトは右方向
         return Vector2Int.right;
     }
 
+    /// <summary>
+    /// プッシュ先のグリッド位置を決定します。
+    /// 推奨方向から順に候補位置をチェックし、最初に塞がっていない位置を返します。
+    /// </summary>
+    /// <param name="originGridPos">ブロックが配置されたグリッド位置</param>
+    /// <param name="preferredDirection">推奨される押し出し方向</param>
+    /// <returns>プッシュ先のグリッド位置</returns>
     private Vector2Int ResolvePushTargetGrid(Vector2Int originGridPos, Vector2Int preferredDirection)
     {
+        // 推奨方向を最優先、その後は右→左→上→下の順で候補を試す
         Vector2Int[] directions = new[]
         {
             preferredDirection,
@@ -239,6 +258,7 @@ public class PlayerController : MonoBehaviour
             Vector3 candidateWorld = GridChanager.Instance.GetWorldPosition(candidate);
             candidateWorld.z = transform.position.z;
 
+            // 候補位置が塞がっていなければ、その方向に押し出す
             if (!IsBlocked(candidateWorld))
             {
                 return candidate;
@@ -248,8 +268,15 @@ public class PlayerController : MonoBehaviour
         return originGridPos;
     }
 
+    /// <summary>
+    /// 指定された世界座標が何かに塞がれているかをチェックします。
+    /// プレイヤー自身とゴール位置は塞がっていないと判定します。
+    /// </summary>
+    /// <param name="worldPosition">チェックする世界座標</param>
+    /// <returns>塞がっている場合true、空いている場合false</returns>
     private bool IsBlocked(Vector3 worldPosition)
     {
+        // 指定座標の周辺にあるコライダーをすべて取得
         Collider2D[] hits = Physics2D.OverlapCircleAll(worldPosition, pushBlockCheckRadius, pushObstacleLayer);
         for (int i = 0; i < hits.Length; i++)
         {
@@ -259,6 +286,7 @@ public class PlayerController : MonoBehaviour
                 continue;
             }
 
+            // プレイヤー自身のコライダーは除外
             bool isPlayerSelf = false;
             if (_playerColliders != null)
             {
@@ -273,6 +301,12 @@ public class PlayerController : MonoBehaviour
             }
 
             if (isPlayerSelf)
+            {
+                continue;
+            }
+
+            // ゴール位置は塞がっていないと判定（空白扱い）
+            if (hit.CompareTag("Goal"))
             {
                 continue;
             }
