@@ -98,16 +98,24 @@ public class MouseManager : MonoBehaviour
             Instantiate(prefabToSpawn, spawnWorldPos, Quaternion.identity);
         }
 
+        // マウスのドラッグ方向を計算（前回の配置位置との差分から方向を判定）
         Vector2Int placementDirection = Vector2Int.zero;
         if (_lastSpawnedGridPos.x != int.MinValue)
         {
+            // 前回の配置位置と今回の配置位置の差分を計算
             Vector2Int rawDirection = gridPos - _lastSpawnedGridPos;
+
+            Debug.Log(rawDirection);
+
+            // X方向の移動が大きければ水平方向、Y方向の移動が大きければ垂直方向と判定
             if (Mathf.Abs(rawDirection.x) >= Mathf.Abs(rawDirection.y))
             {
+                // 水平方向：右(1)または左(-1)
                 placementDirection = new Vector2Int(Mathf.Clamp(rawDirection.x, -1, 1), 0);
             }
             else
             {
+                // 垂直方向：上(1)または下(-1)
                 placementDirection = new Vector2Int(0, Mathf.Clamp(rawDirection.y, -1, 1));
             }
         }
